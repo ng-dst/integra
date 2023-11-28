@@ -52,7 +52,7 @@ List<HashTree> objectList
 
 ### List in JSON
 
-It was proposed to use JSON to store OL. We'll use separate lists for files and registry.
+It was proposed to use JSON to store OL. We'll use the following structure. (_possibly subject to change_)
 
 ```
 [
@@ -90,7 +90,7 @@ It was proposed to use JSON to store OL. We'll use separate lists for files and 
 ### Expansion & improvements
 
 * Multiple lists
-* Detailed snapshot setup (certain scope and options), GUI setup?
+* Detailed snapshot setup (certain scope and options), _GUI setup?_
 * ???
 
 ### Service
@@ -99,7 +99,7 @@ Service that periodically checks hashes (_Hash Tree_) of objects in list.
 
 #### Service template 
 
-See in Microsoft docs (i will use lab 7)
+See in Microsoft docs (i will use lab 7 as a basis)
 
 #### Algorithm
 
