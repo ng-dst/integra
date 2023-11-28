@@ -9,7 +9,7 @@ Here, _Object_ stands for either File / folder or Registry key / value, includin
 
 ### Object
 
-An _Object_ is either a folder (file) or registry key (value). 
+An _Object_ is either a folder (file) or registry key (value). Integrity of the object is verified against so called _Hash Tree_.
 
 ### Object List
 
