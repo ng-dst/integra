@@ -25,21 +25,19 @@ On add, utility makes a hash snapshot of object's current state and adds it to l
 
 ### List format
 
-List consists of _Hash Trees_:
+List consists of _Hash Trees_ (probably will be represented as cJSON's so custom structs are not needed)
 
 ```
 struct HashTree {
     string object_name;
-    char type;
+    WORD type;
     HashNode root;
-    int cbSize;
     string path;
 }
 
 struct HashNode {
     Hash hash;
     List<HashNode> slaves;
-    int cbSize;
     string name;
 }
 ```
@@ -52,21 +50,23 @@ List<HashTree> objectList
 
 ### List in JSON
 
-It was proposed to use JSON to store OL. We'll use the following structure. (_possibly subject to change_)
+It was proposed to use JSON to store OL. I'll go with [cJSON](https://github.com/DaveGamble/cJSON).
+
+OL will have the following structure. (_possibly subject to change_)
 
 ```
 [
     {
         "object_name": "Installation of MyService",
-        "type": "r",                                            // "r" (registry) or "f" (files)
-        "path": "HKLM\SYSTEM\CurrentControlSet\MyService",
+        "type": OBJECT_REGISTRY,                                // int: registry or file
+        "path": "HKLM\\SYSTEM\\CurrentControlSet\\MyService",
         "root": {
-            "name": null,                                       // root always has null name (or empty?)
+            "name": null,                                       // root always has null name (or empty? idk)
             "hash": "ab12cd6e90fed692f1ca08a7",
             "slaves": [
                 {
                     "name": "Parameters",
-                    "hash": null,                               // ignore listing, i.e. allow new keys
+                    "hash": null,                               // null if we ignore listing, i.e. allow new keys
                     "slaves": [
                         {
                             "name": "param1",
@@ -78,7 +78,7 @@ It was proposed to use JSON to store OL. We'll use the following structure. (_po
                 {
                     "name": "Security",
                     "hash": "12cc0f834eedb7faa4a2dc90",
-                    "slaves": []                                // empty list - means it's a folder
+                    "slaves": []                                // empty list - means it's an empty folder
                 }
             ]
         }
@@ -89,8 +89,8 @@ It was proposed to use JSON to store OL. We'll use the following structure. (_po
 
 ### Expansion & improvements
 
-* Multiple lists
-* Detailed snapshot setup (certain scope and options), _GUI setup?_
+* Multiple lists (currently possible by changing OL path, though its only one OL at a time)
+* Detailed snapshot setup (certain scope and options), _GUI-based setup?_
 * ???
 
 ### Service
@@ -122,15 +122,15 @@ See in Microsoft docs (i will use lab 7 as a basis)
 #### Verify against snapshot
 
 * `void VerifyObject(htHashTree)`
-* `void VerifyNode(wObjectType, szPath, htHashNode)`  - recursive, report on mismatch, can be interrupted
+* `void VerifyNode(wObjectType, szPath, htHashNode)`  - recursive, report on mismatch, can be interrupted?
 
 #### Service
 
 * `SvcMain()`
-* `SvcInit()` - creates secondary thread
+* `SvcInit()`
 * `SvcReportStatus()`
-* `SvcCtrlHandler()` - called by SCM
+* `SvcCtrlHandler()` - called by SCM to exit
 * `ReportSvcEvent()`
-* `IntegrityCheckWorker()` - in secondary thread
+* `ServiceLoop()`
 
 ## To be continued...
