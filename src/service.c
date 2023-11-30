@@ -26,7 +26,7 @@ void SvcInstall() {
     SC_HANDLE schService;
     TCHAR path[MAX_PATH] = {0};
 
-    // Set default parameters
+    // Set default parameters (can fail but its OK)
     SetCheckInterval(DEFAULT_CHECK_INTERVAL_MS);
     if (GetCurrentDirectory(MAX_PATH, path)) {
         strncpy(path + _tcslen(path), DEFAULT_OL_FILE_NAME, MAX_PATH - _tcslen(path) - 1);
@@ -45,6 +45,7 @@ void SvcInstall() {
     schSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (!schSCManager) {
         printf("OpenSCManager failed (%lu)\n", GetLastError());
+        return;
     }
 
     schService = CreateService(
