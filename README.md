@@ -149,7 +149,7 @@ Uses MD5 as a hashing algorithm. All hashes are stored as Hex strings. Below are
          This approach does not rely on Keys / Values order in enumeration (since XOR is commutative),
        while still being able to distinct Values and Keys of the same name.
       
-         Unlike folders, Registry is very sensitive to newly created values or keys, hence we hash its listing.
+         Unlike folders, Registry is very sensitive to newly created values or keys, hence we hash it.
 
 ## Service
 
