@@ -16,36 +16,6 @@
 #define NOT_FOUND (-1)
 
 
-DWORD GetRegPathFromHKEY(HKEY key, LPTSTR keyPath, DWORD cbSize) {
-    /**
-     * @brief Use NtQueryKey to get registry path by HKEY. Write result to keyPath (max. cbSize)
-     *
-     * @details https://stackoverflow.com/questions/937044/determine-path-to-registry-key-from-hkey-handle-in-c
-     */
-    DWORD result = ERROR;
-    if (key != NULL)
-    {
-        HMODULE dll = LoadLibrary(L"ntdll.dll");
-        if (dll != NULL) {
-            typedef DWORD (__stdcall *NtQueryKeyType)(
-                    HANDLE  KeyHandle,
-                    int KeyInformationClass,
-                    PVOID  KeyInformation,
-                    ULONG  Length,
-                    PULONG  ResultLength);
-
-            NtQueryKeyType func = (LPVOID) GetProcAddress(dll, "NtQueryKey");
-
-            if (func != NULL)
-                result = func(key, 3, keyPath, cbSize, NULL);
-
-            FreeLibrary(dll);
-        }
-    }
-    return result;
-}
-
-
 HKEY ParseRootHKEY(LPCTSTR szPath) {
     LPTSTR lpIndex = strchr(szPath, '\\');
     if (!lpIndex) return INVALID_HANDLE_VALUE;
@@ -104,6 +74,7 @@ cJSON* ReadJSON(LPCTSTR path) {
     cJSON* jsonObjectList = ReadJSON(szOlPath); \
     if (!jsonObjectList || !cJSON_IsArray(jsonObjectList)) return EXIT_FAILURE
 
+
 #define SaveOL() \
     LPTSTR buf = cJSON_Print(jsonObjectList); \
     if (!buf) printf("Could not serialize JSON!\n"); \
@@ -119,6 +90,7 @@ cJSON* ReadJSON(LPCTSTR path) {
             printf("OK\n"); \
         } \
     }
+
 
 #define CloseOL() \
     free(szOlPath); \

@@ -225,17 +225,11 @@ cJSON* SnapshotNodeReg(HKEY hBase, LPCTSTR szName, BOOL isKey) {
      *          add name and type to hash
      */
 
-    TCHAR szPath[MAX_PATH];
-
     HKEY hCurrent = hBase;
     DWORD res, dwType, dwSize;
 
     cJSON* jsonNode = cJSON_CreateObject();
     if (!jsonNode) return NULL;
-
-    // Get path (for logging)
-    res = GetRegPathFromHKEY(hBase, szPath, MAX_PATH-1);
-    if (res != ERROR_SUCCESS) strcpy(szPath, "<unknown>");
 
     // set name
     if (szName) cJSON_AddStringToObject(jsonNode, "name", szName);
@@ -243,16 +237,15 @@ cJSON* SnapshotNodeReg(HKEY hBase, LPCTSTR szName, BOOL isKey) {
 
     // Name is set, check presense and compute hash
     if (szName) {
-        snprintf(szPath + _tcslen(szPath), MAX_PATH - _tcslen(szPath), "\\%s", szName);
-
         // For keys: open registry key
+        // For values: read value's type and size
         if (isKey) res = RegOpenKeyEx(hBase, szName, 0, KEY_READ, &hCurrent);
         else       res = RegQueryValueEx(hBase, szName, NULL, &dwType, NULL, &dwSize);
 
         if (res != ERROR_SUCCESS && res != ERROR_INSUFFICIENT_BUFFER) {
             if (res == ERROR_FILE_NOT_FOUND)
-                 printf("Key '%s': Missing\n", szPath);
-            else printf("Key '%s': Failed to open (%lu)\n", szPath, res);
+                 printf("Key '%s': Missing\n", szName);
+            else printf("Key '%s': Failed to open (%lu)\n", szName, res);
             return NULL;
         }
     }
@@ -299,14 +292,14 @@ cJSON* SnapshotNodeReg(HKEY hBase, LPCTSTR szName, BOOL isKey) {
             res = MD5_MemHashDigest(pbRegBuf, dwSize + sizeof(DWORD), szActualHash);
 
         if (res != ERROR_SUCCESS) {
-            printf("Value '%s': Could not compute hash (%lu)\n", szPath, res);
+            printf("Value '%s': Could not compute hash (%lu)\n", szName, res);
             free(pbRegBuf);
             return jsonNode;
         }
         else cJSON_AddStringToObject(jsonNode, "hash", szActualHash);
     }
 
-    printf("Snapshot of path '%s': Done\n", szPath);
+    printf("Snapshot of path '%s': Done\n", szName);
     return jsonNode;
 
 }
