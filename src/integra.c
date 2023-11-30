@@ -11,9 +11,6 @@
 #define CHECK_DELAY_MS 30 * 60 * 1000
 #endif
 
-#define OBJECT_FILE 0
-#define OBJECT_REGISTRY 1
-
 #define BUF_LEN 256
 
 
@@ -48,7 +45,7 @@ void ServiceLoop(HANDLE stopEvent) {
         cJSON_Delete(jsonObjectList);
 
         // If no stop event, check only once
-        if (stopEvent == INVALID_HANDLE_VALUE) return;
+        if (stopEvent == INTEGRA_CHECK_ONCE) return;
 
         // Sleep for Check Delay while listening for stop signal
         res = WaitForSingleObject(stopEvent, CHECK_DELAY_MS);
@@ -67,7 +64,7 @@ void ServiceLoop(HANDLE stopEvent) {
 
 void VerifyObject(cJSON* jsonObject) {
     /**
-     * @brief Verify HashTree of object against actual object
+     * @brief Verify Hash Tree of object against actual object
      *
      * @details Given object as cJSON:
      *      string  object_name
@@ -108,7 +105,7 @@ void VerifyObject(cJSON* jsonObject) {
     cJSON* jsonRootNode = cJSON_GetObjectItem(jsonObject, "root");
     if (!jsonRootNode) ReportObjErrorAndRet();
 
-    // Check presense and get base handle
+    // Check presence and obtain base handle, proceed to Hash Tree verification
     switch (dwType) {
 
         case OBJECT_FILE:
@@ -125,6 +122,7 @@ void VerifyObject(cJSON* jsonObject) {
                 if (res == ERROR_FILE_NOT_FOUND)
                     snprintf(buf, BUF_LEN-1, "Object '%s': Missing", szObjectName);
                 else snprintf(buf, BUF_LEN-1, "Object '%s': Failed to open (%d)", szObjectName, res);
+
                 SvcReportEvent(EVENTLOG_ERROR_TYPE, buf);
                 return;
             }
@@ -133,13 +131,14 @@ void VerifyObject(cJSON* jsonObject) {
             break;
 
         case OBJECT_REGISTRY:
+            // Parse root HKEY from path to get definition like HKEY_CLASSES_ROOT
             hkRoot = ParseRootHKEY(szPath);
             if (hkRoot == INVALID_HANDLE_VALUE) {
                 snprintf(buf, BUF_LEN-1, "Object '%s': Invalid root HKEY");
                 SvcReportEvent(EVENTLOG_ERROR_TYPE, buf);
                 return;
             }
-            // safe, since hkRoot found '\\'
+            // Safe, since hkRoot found '\\'
             dwBackslashIndex = strchr(szPath, '\\') - szPath;
             res = RegOpenKeyEx(hkRoot, szPath + dwBackslashIndex + 1, 0, KEY_READ, &hkBaseKey);
 
@@ -147,14 +146,18 @@ void VerifyObject(cJSON* jsonObject) {
                 if (res == ERROR_FILE_NOT_FOUND)
                     snprintf(buf, BUF_LEN-1, "Object '%s': Missing", szObjectName);
                 else snprintf(buf, BUF_LEN-1, "Object '%s': Failed to open (%d)", szObjectName, res);
+
                 SvcReportEvent(EVENTLOG_ERROR_TYPE, buf);
                 return;
             }
+
+            // Proceed to node verification
             VerifyNodeReg(jsonRootNode, hkBaseKey);
             RegCloseKey(hkBaseKey);
             break;
 
         default:
+            // wat? (x2)
             snprintf(buf, BUF_LEN-1, "Object '%s': Unknown object type", szObjectName);
             SvcReportEvent(EVENTLOG_ERROR_TYPE, buf);
             return;
@@ -170,11 +173,11 @@ void VerifyNodeFile(cJSON* jsonNode, HANDLE hBase) {
      *
      * @details go DFS
      *  for leaves:
-     *      - check presense
+     *      - check presence
      *      - check hash
      *      - report on mismatch
      *  for nodes:
-     *      - check presense
+     *      - check presence
      *      - for each subnode:
      *          recursive call
      *      - for each item in actual object:
@@ -185,7 +188,7 @@ void VerifyNodeFile(cJSON* jsonNode, HANDLE hBase) {
     TCHAR buf[BUF_LEN];
     TCHAR szPath[MAX_PATH];
 
-    HANDLE hCurrent = hBase;
+    HANDLE hCurrent;
     DWORD res;
     BOOL isDirectory;
     BOOL hasSlaves;
@@ -196,19 +199,19 @@ void VerifyNodeFile(cJSON* jsonNode, HANDLE hBase) {
     if (jsonName && cJSON_IsString(jsonName))
         szName = cJSON_GetStringValue(jsonName);
 
-    // Get path (for logging)
-    res = GetFinalPathNameByHandle(hBase, szPath, MAX_PATH-1, 0);
+    // Get path
+    res = GetFinalPathNameByHandle(hBase, szPath, MAX_PATH-1, VOLUME_NAME_DOS);
     if (res <= 0) strcpy(szPath, "<unknown>");
 
-    // Get slaves in OL
+    // Get slaves of node
     cJSON* jsonSlaves = cJSON_GetObjectItem(jsonNode, "slaves");
     hasSlaves = (jsonSlaves && cJSON_IsArray(jsonSlaves));
 
-    // Name is set, check presense and actual type
+    // If name is set, check presence and actual type, obtain handle:  hCurrent
     if (szName) {
         snprintf(szPath + _tcslen(szPath), MAX_PATH - _tcslen(szPath), "\\%s", szName);
 
-        // Check presense, assuming hBase is valid
+        // Check presence, assuming hBase is valid
         hCurrent = CreateFile(szPath,
                                GENERIC_READ,
                                FILE_SHARE_READ,
@@ -227,14 +230,17 @@ void VerifyNodeFile(cJSON* jsonNode, HANDLE hBase) {
         }
 
         isDirectory = (GetFileAttributes(szPath) & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY;
+
         if (isDirectory != hasSlaves) {
+            // Node type mismatch. Only directories have slaves list
             if (!isDirectory) snprintf(buf, BUF_LEN-1, "Folder '%s': Expected directory, got file", szPath);
             else              snprintf(buf, BUF_LEN-1, "File '%s': Expected file, got directory", szPath);
+
             SvcReportEvent(EVENTLOG_WARNING_TYPE, buf);
             return;
         }
     }
-    else hCurrent = hBase;  // szName not set -> it is root
+    else hCurrent = hBase;  // szName not set -> it is root, use hBase instead
 
     // Check slaves (recursive)
     if (hasSlaves)
@@ -263,7 +269,9 @@ void VerifyNodeFile(cJSON* jsonNode, HANDLE hBase) {
                 return;
             }
         }
-        // TODO hash for directory?
+        // Can also perform hash checks for directories
+        // But we ignore it for now (allow for new files by default)
+        // In future it might be implemented
     }
     if (hCurrent != hBase) CloseHandle(hCurrent);
 
@@ -281,52 +289,72 @@ void VerifyNodeReg(cJSON* jsonNode, HKEY hBase) {
      *
      * @details go DFS
      *  for leaves:
-     *      - check presense
+     *      - check presence
      *      - check hash
      *      - report on mismatch
+     *
      *  for nodes:
-     *      - check presense
+     *      - check presence
      *      - for each subnode:
      *          recursive call
      *      - for each item in actual object:
      *          add name and type to hash
      *      - report on mismatch
+     *
+     * -------------------------------------------------------------------------------------- *
+     *    Hash for value is computed as:
+     *
+     *      MD5( dwType | rbValue )
+     *
+     *    where  dwType   -  4-byte DWORD (usually little-endian),
+     *           rbValue  -  byte buffer for value,
+     *            |       -  concat operation
+     *
+     * -------------------------------------------------------------------------------------- *
+     *    Hash for key is computed as:
+     *
+     *      MD5( MD5(valueName1)^...^MD5(valueNameN) ^ MD5[MD5(keyName1)^...^MD5(keyNameM)] )
+     *
+     *    where  valueName1...valueNameN  -  values in key
+     *           keyName1...keyNameM      -  sub-keys contained in key
+     *            ^                       -  XOR operation
+     *
+     * -------------------------------------------------------------------------------------- *
      */
 
     TCHAR buf[BUF_LEN];
-    LPBYTE pbRegBuf;
 
     HKEY hCurrent = hBase;
-    DWORD res, dwType, dwSize;
+    DWORD res;
     BOOL hasSlaves;
 
-    // Get name
+    // Get key / value name
     LPTSTR szName = NULL;
     cJSON* jsonName = cJSON_GetObjectItem(jsonNode, "name");
     if (jsonName && cJSON_IsString(jsonName))
         szName = cJSON_GetStringValue(jsonName);
 
-    // Get slaves in OL
+    // Get slaves list from node
     cJSON* jsonSlaves = cJSON_GetObjectItem(jsonNode, "slaves");
     hasSlaves = (jsonSlaves && cJSON_IsArray(jsonSlaves));
 
-    // name set, check presense
+    // name set, check presence and obtain handle:  hCurrent
     if (szName) {
 
         if (hasSlaves)
             res = RegOpenKeyEx(hBase, szName, 0, KEY_READ, &hCurrent);
         else
-            res = RegQueryValueEx(hBase, szName, NULL, &dwType, NULL, &dwSize);
+            res = RegQueryValueEx(hBase, szName, NULL, NULL, NULL, NULL);
 
         if (res != ERROR_SUCCESS && res != ERROR_INSUFFICIENT_BUFFER) {
             if (res == ERROR_FILE_NOT_FOUND)
                 snprintf(buf, BUF_LEN-1, "Key '%s': Missing", szName);
             else snprintf(buf, BUF_LEN-1, "Key '%s': Failed to open (%lu)", szName, res);
+
             SvcReportEvent(EVENTLOG_WARNING_TYPE, buf);
             return;
         }
-    }
-    else hCurrent = hBase;
+    }  // name not set -> it is root, use hBase instead
 
     // Check slaves (recursive)
     if (hasSlaves)
@@ -339,42 +367,33 @@ void VerifyNodeReg(cJSON* jsonNode, HKEY hBase) {
         LPTSTR szExpectedHash = cJSON_GetStringValue(jsonHash);
         TCHAR szActualHash[MD5LEN*2 + 1] = {0};
 
-        // Value: compute hash(dwType | Value)
-        if (!hasSlaves) {
-            pbRegBuf = malloc(dwSize * sizeof(BYTE) + sizeof(DWORD));
-            if (!pbRegBuf) return;
+        if (hasSlaves)
+            res = MD5_RegKeyHashDigest(hCurrent, szActualHash);
+        else
+            res = MD5_RegValueHashDigest(hBase, szName, szActualHash);
 
-            // Write Type (DWORD)
-            memcpy(pbRegBuf, &dwType, sizeof(DWORD));
-
-            // Get value from reg
-            res = RegQueryValueEx(hBase, szName, NULL, NULL, pbRegBuf+sizeof(DWORD), &dwSize);
-            if (res == ERROR_SUCCESS)
-                res = MD5_MemHashDigest(pbRegBuf, dwSize + sizeof(DWORD), szActualHash);
-
-            if (res != ERROR_SUCCESS) {
-                snprintf(buf, BUF_LEN-1, "Value '%s': Could not compute hash (%lu)", szName, res);
-                SvcReportEvent(EVENTLOG_WARNING_TYPE, buf);
-                free(pbRegBuf);
-                return;
-            }
-
-            if (0 != strncmp(szExpectedHash, szActualHash, MD5LEN * 2)) {
-                snprintf(buf, BUF_LEN-1, "Value '%s': Value was modified (hash mismatch)", szName);
-                SvcReportEvent(EVENTLOG_WARNING_TYPE, buf);
-                free(pbRegBuf);
-                return;
-            }
-
-            free(pbRegBuf);
+        if (res != ERROR_SUCCESS) {
+            snprintf(buf, BUF_LEN-1, "Key '%s': Could not compute hash", szName ? szName : "\\");
+            SvcReportEvent(EVENTLOG_WARNING_TYPE, buf);
+            if (hCurrent != hBase) RegCloseKey(hCurrent);
+            return;
         }
-        // TODO hash for key?
+
+        else if (0 != strncmp(szExpectedHash, szActualHash, MD5LEN * 2)) {
+            snprintf(buf, BUF_LEN-1, "Key '%s': Modified (hash mismatch)", szName ? szName : "\\");
+            SvcReportEvent(EVENTLOG_WARNING_TYPE, buf);
+            if (hCurrent != hBase) RegCloseKey(hCurrent);
+            return;
+        }
+
     }
     if (hCurrent != hBase) RegCloseKey(hCurrent);
 
+#ifdef REPORT_SUCCESSFUL_CHECKS
     // Shouldn't really spam event log, but who knows...
     if (szName) {
         snprintf(buf, BUF_LEN-1, "Key '%s': OK", szName);
         SvcReportEvent(EVENTLOG_INFORMATION_TYPE, buf);
     }
+#endif
 }

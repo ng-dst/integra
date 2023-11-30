@@ -4,9 +4,12 @@
 #include <windows.h>
 #include "cjson.h"
 
-cJSON* ReadJSON(LPCTSTR path);
+#define OBJECT_FILE 0
+#define OBJECT_REGISTRY 1
 
-DWORD GetRegPathFromHKEY(HKEY hBase, LPTSTR szPath, DWORD cbSize);
+#define INTEGRA_CHECK_ONCE INVALID_HANDLE_VALUE
+
+cJSON* ReadJSON(LPCTSTR path);
 HKEY ParseRootHKEY(LPCTSTR szPath);
 
 int AddObjectToOL(LPCTSTR szName, DWORD dwType, LPCTSTR szPath);

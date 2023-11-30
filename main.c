@@ -8,9 +8,6 @@
 
 #pragma comment(lib, "advapi32.lib")
 
-#define OBJECT_FILE 0
-#define OBJECT_REGISTRY 1
-
 
 int main(int argc, char** argv) {
     // Initialize registry paths *
@@ -22,7 +19,7 @@ int main(int argc, char** argv) {
         return EXIT_SUCCESS;
     }
 
-    // "list path [path]" - Get / set absolute path for OL file
+    // "list path [path]" - Get / set* absolute path for OL file
     if (argc > 2 && !strcmpi(argv[1], "list") && !strcmpi(argv[2], "path")) {
         // no path specified, print existing
         if (argc == 3) {
@@ -68,7 +65,7 @@ int main(int argc, char** argv) {
     // "verify" - Verify on-demand
     if (argc == 2 && !strcmpi(argv[1], "verify")) {
         // run service without stop  =>  check once
-        ServiceLoop(INVALID_HANDLE_VALUE);
+        ServiceLoop(INTEGRA_CHECK_ONCE);
         printf("Verification complete. See Event Log for details\n");
         return EXIT_SUCCESS;
     }
@@ -104,6 +101,7 @@ int main(int argc, char** argv) {
 
     if (!StartServiceCtrlDispatcher(DispatchTable)) {
         SvcReportEvent(EVENTLOG_ERROR_TYPE, "StartServiceCtrlDispatcher failed");
+
         // could just run manually from terminal
         printf("Cannot run manually without arguments. Use 'h' or 'help' for help\n");
         return EXIT_FAILURE;

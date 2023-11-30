@@ -5,9 +5,6 @@
 #include "snapshot.h"
 
 
-#define OBJECT_FILE 0
-#define OBJECT_REGISTRY 1
-
 #define BUF_LEN 256
 
 
@@ -17,7 +14,7 @@ cJSON* SnapshotObject(DWORD dwType, LPCTSTR szObjectName, LPCTSTR szPath) {
      *
      * @details Given object as Folder or Key, make a JSON:
      *      string  object_name
-     *      WORD    type
+     *      DWORD   type
      *      string  path
      *      cJSON   root
      *
@@ -27,23 +24,23 @@ cJSON* SnapshotObject(DWORD dwType, LPCTSTR szObjectName, LPCTSTR szPath) {
      *      [cJSON] slaves
      */
 
+    TCHAR szFinalPath[MAX_PATH];
     HANDLE hBaseHnd;
     HKEY hkBaseKey, hkRoot;
     DWORD dwBackslashIndex;
-    LPTSTR lpIndex;
-    int res;
     cJSON* jsonRootNode;
+    int res;
 
     printf("Making snapshot of object '%s'...\n", szObjectName);
 
     cJSON* jsonObject = cJSON_CreateObject();
     if (!jsonObject) return NULL;
 
+    // Set basic properties
     cJSON_AddStringToObject(jsonObject, "object_name", szObjectName);
     cJSON_AddNumberToObject(jsonObject, "type", dwType);
-    cJSON_AddStringToObject(jsonObject, "path", szPath);
 
-    // Check presense and get base handle
+    // Check presence and get base handle, proceed to node snapshot
     switch (dwType) {
 
         case OBJECT_FILE:
@@ -60,27 +57,33 @@ cJSON* SnapshotObject(DWORD dwType, LPCTSTR szObjectName, LPCTSTR szPath) {
                 if (res == ERROR_FILE_NOT_FOUND)
                     printf("Object '%s': Missing\n", szObjectName);
                 else printf("Object '%s': Failed to open (%d)\n", szObjectName, res);
+
                 cJSON_Delete(jsonObject);
                 return NULL;
             }
 
+            // Set actual absolute path
+            GetFinalPathNameByHandle(hBaseHnd, szFinalPath, MAX_PATH, VOLUME_NAME_DOS);
+            cJSON_AddStringToObject(jsonObject, "path", szFinalPath);
+
+            // Proceed to node backup
             jsonRootNode = SnapshotNodeFile(hBaseHnd, NULL);
             CloseHandle(hBaseHnd);
-            if (!jsonRootNode) {
-                cJSON_Delete(jsonObject);
-                return NULL;
-            }
+            if (!jsonRootNode) { cJSON_Delete(jsonObject); return NULL; }
+
+            // OK return snapshot of object
             cJSON_AddItemToObject(jsonObject, "root", jsonRootNode);
             return jsonObject;
 
         case OBJECT_REGISTRY:
+            // Get root HKEY from path. A definition like HKEY_CLASSES_ROOT is returned
             hkRoot = ParseRootHKEY(szPath);
             if (hkRoot == INVALID_HANDLE_VALUE) {
                 printf("Invalid root HKEY. Must be of format HKEY\\Path\\Key (ex. HKEY_USERS\\User\\Key)\n");
                 cJSON_Delete(jsonObject);
                 return NULL;
             }
-            // safe, since hkRoot found '\\'
+            // Safe, since hkRoot found '\\'
             dwBackslashIndex = strchr(szPath, '\\') - szPath;
             res = RegOpenKeyEx(hkRoot, szPath + dwBackslashIndex + 1, 0, KEY_READ, &hkBaseKey);
 
@@ -88,19 +91,25 @@ cJSON* SnapshotObject(DWORD dwType, LPCTSTR szObjectName, LPCTSTR szPath) {
                 if (res == ERROR_FILE_NOT_FOUND)
                     printf("Object '%s': Missing\n", szObjectName);
                 else printf("Object '%s': Failed to open (%d)\n", szObjectName, res);
+
                 cJSON_Delete(jsonObject);
                 return NULL;
             }
+
+            // Set base path
+            cJSON_AddStringToObject(jsonObject, "path", szPath);
+
+            // Proceed to node snapshot
             jsonRootNode = SnapshotNodeReg(hkBaseKey, NULL, TRUE);
             RegCloseKey(hkBaseKey);
-            if (!jsonRootNode) {
-                cJSON_Delete(jsonObject);
-                return NULL;
-            }
+            if (!jsonRootNode) { cJSON_Delete(jsonObject); return NULL; }
+
+            // OK return snapshot of object
             cJSON_AddItemToObject(jsonObject, "root", jsonRootNode);
             return jsonObject;
 
         default:
+            // wat?
             printf("Object '%s': Unknown object type\n", szObjectName);
             return NULL;
     }
@@ -112,39 +121,49 @@ cJSON* SnapshotNodeFile(HANDLE hBase, LPCTSTR szName) {
      * @brief Verify HashNode against actual sub-folder or file
      *
      * @details go DFS
-     *  for leaves:
-     *      - check presense
+     *  for files:
+     *      - check presence
      *      - compute hash
-     *  for nodes:
-     *      - check presense
-     *      - for each subnode:
+     *
+     *  for directories:
+     *      - check presence
+     *      - for each item:
      *          recursive call
-     *      - for each item in actual object:
-     *          add name and type to hash
+     *
+     * -------------------------------------------------------------------------------------- *
+     *    Hash for key is computed as:
+     *        MD5( file contents )
+     *
+     *    using MD5_FileHashDigest()
+     *
+     * -------------------------------------------------------------------------------------- *
+     *    Hash for directory is NOT computed (out-of-scope and new files are ignored)
+     *
+     * -------------------------------------------------------------------------------------- *
      */
 
     TCHAR szPath[MAX_PATH];
 
-    HANDLE hCurrent = hBase;
+    HANDLE hCurrent;
     DWORD res;
     BOOL isDirectory;
 
     cJSON* jsonNode = cJSON_CreateObject();
     if (!jsonNode) return NULL;
 
-    // Get path (for logging)
-    res = GetFinalPathNameByHandle(hBase, szPath, MAX_PATH-1, 0);
+    // Get path by base handle:  szPath
+    res = GetFinalPathNameByHandle(hBase, szPath, MAX_PATH-1, VOLUME_NAME_DOS);
     if (res <= 0) strcpy(szPath, "<unknown>");
 
-    // set name
+    // Set name (if present)
     if (szName) cJSON_AddStringToObject(jsonNode, "name", szName);
     else cJSON_AddNullToObject(jsonNode, "name");
 
-    // Name is set, check presense and compute hash
+    // If name is set, check presence and obtain handle:  hCurrent
     if (szName) {
         snprintf(szPath + _tcslen(szPath), MAX_PATH - _tcslen(szPath), "\\%s", szName);
 
-        // Check presense, assuming hBase is valid
+        // Check presence, assuming hBase is valid
         hCurrent = CreateFile(szPath,
                                GENERIC_READ,
                                FILE_SHARE_READ,
@@ -162,17 +181,18 @@ cJSON* SnapshotNodeFile(HANDLE hBase, LPCTSTR szName) {
             return NULL;
         }
     }
-    else hCurrent = hBase;  // szName not set -> it is root
+    else hCurrent = hBase;  // szName not set -> it is root, use hBase instead
 
     isDirectory = (GetFileAttributes(szPath) & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY;
 
-    // add slaves (recursive)
+    // Directory: add slaves (recursive)
     if (isDirectory) {
-        snprintf(szPath + _tcslen(szPath), MAX_PATH - _tcslen(szPath), "\\*");
 
         cJSON* jsonSlavesArr = cJSON_AddArrayToObject(jsonNode, "slaves");
 
-        // Iterate over files in folder
+        // Search for files and sub-folders. To do this, append '\*' to path:  C:\path\*
+        snprintf(szPath + _tcslen(szPath), MAX_PATH - _tcslen(szPath), "\\*");
+
         WIN32_FIND_DATA wfd;
         HANDLE hFind = FindFirstFile(szPath, &wfd);
         if (hFind != INVALID_HANDLE_VALUE) {
@@ -182,14 +202,19 @@ cJSON* SnapshotNodeFile(HANDLE hBase, LPCTSTR szName) {
                                       0 != _tcscmp(_T(".."), wfd.cFileName)) {
                     // Recursive call
                     cJSON *jsonSlave = SnapshotNodeFile(hCurrent, wfd.cFileName);
+
+                    // Add to slaves list for current node
                     if (jsonSlave) cJSON_AddItemToArray(jsonSlavesArr, jsonSlave);
-                    // TODO directory hash
                 }
             } while (FindNextFile(hFind, &wfd));
             FindClose(hFind);
         }
     }
-    else {  // !isDirectory
+    else {  // File: compute hash
+        /*
+         *  Hash for file is computed with  MD5_FileHashDigest()
+         *  If failed, store NULL hash: we mark presence of file but don't snapshot its contents
+         */
         TCHAR szActualHash[MD5LEN*2 + 1] = {0};
         res = MD5_FileHashDigest(hCurrent, szActualHash);
         if (res != ERROR_SUCCESS) {
@@ -213,16 +238,37 @@ cJSON* SnapshotNodeReg(HKEY hBase, LPCTSTR szName, BOOL isKey) {
      * @brief Make HashNode of sub-key or value
      *
      * @details go DFS
-     *  for leaves:
-     *      - check presense
+     *  for values:
+     *      - check presence
      *      - calculate hash
-     *
-     *  for nodes:
-     *      - check presense
-     *      - for each subnode:
+     *  for keys:
+     *      - check presence
+     *      - for each sub-key:
      *          recursive call
-     *      - for each item in actual object:
-     *          add name and type to hash
+     *          add name to hash
+     *      - for each value in key:
+     *          recursive call
+     *          add name to hash
+     *
+     * -------------------------------------------------------------------------------------- *
+     *    Hash for value is computed as:
+     *
+     *      MD5( dwType | rbValue )
+     *
+     *    where  dwType   -  4-byte DWORD (usually little-endian),
+     *           rbValue  -  byte buffer for value,
+     *            |       -  concat operation
+     *
+     * -------------------------------------------------------------------------------------- *
+     *    Hash for key is computed as:
+     *
+     *      MD5( MD5(valueName1)^...^MD5(valueNameN) ^ MD5[MD5(keyName1)^...^MD5(keyNameM)] )
+     *
+     *    where  valueName1...valueNameN  -  values in key
+     *           keyName1...keyNameM      -  sub-keys contained in key
+     *            ^                       -  XOR operation
+     *
+     * -------------------------------------------------------------------------------------- *
      */
 
     HKEY hCurrent = hBase;
@@ -235,7 +281,7 @@ cJSON* SnapshotNodeReg(HKEY hBase, LPCTSTR szName, BOOL isKey) {
     if (szName) cJSON_AddStringToObject(jsonNode, "name", szName);
     else cJSON_AddNullToObject(jsonNode, "name");
 
-    // Name is set, check presense and compute hash
+    // Name is set, check presence and compute hash
     if (szName) {
         // For keys: open registry key
         // For values: read value's type and size
@@ -248,60 +294,53 @@ cJSON* SnapshotNodeReg(HKEY hBase, LPCTSTR szName, BOOL isKey) {
             else printf("Key '%s': Failed to open (%lu)\n", szName, res);
             return NULL;
         }
-    }
-    else hCurrent = hBase;  // szName not set -> it is root
+    }  // if szName not set -> it is root node, use hBase instead
 
-    // add slaves (recursive)
+    TCHAR szActualHash[MD5LEN*2 + 1] = {0};
+
     if (isKey) {
+        // compute hash for key (see implementation)
+        MD5_RegKeyHashDigest(hCurrent, szActualHash);
+        cJSON_AddStringToObject(jsonNode, "hash", szActualHash);
+
         cJSON* jsonSlavesArr = cJSON_AddArrayToObject(jsonNode, "slaves");
 
         // Iterate over sub-keys
-        DWORD dwIndex = 0;
         TCHAR szSlaveName[MAX_PATH];
-
+        DWORD dwIndex = 0;
         while (ERROR_SUCCESS == RegEnumKey(hCurrent, dwIndex, szSlaveName, MAX_PATH)) {
-            // Recursive call
+            // Recursive call. Add to slaves list of current node
             cJSON* jsonSlave = SnapshotNodeReg(hCurrent, szSlaveName, TRUE);
             if (jsonSlave) cJSON_AddItemToArray(jsonSlavesArr, jsonSlave);
             dwIndex++;
         }
 
-        dwIndex = 0;
+        // Iterate over values
         dwSize = MAX_PATH;
+        dwIndex = 0;
         while (ERROR_SUCCESS == RegEnumValue(hCurrent, dwIndex, szSlaveName, &dwSize, NULL, NULL, NULL, NULL)) {
-            // Recursion, again
+            // Recursion, again. Add to slaves list, again
             cJSON* jsonSlave = SnapshotNodeReg(hCurrent, szSlaveName, FALSE);
             if (jsonSlave) cJSON_AddItemToArray(jsonSlavesArr, jsonSlave);
             dwIndex++;
         }
-        if (hCurrent != hBase) RegCloseKey(hCurrent);
 
-        // TODO key hash?
+        if (hCurrent != hBase) RegCloseKey(hCurrent);
     }
     else {  // !isKey
-        TCHAR szActualHash[MD5LEN*2 + 1] = {0};
-        BYTE* pbRegBuf = malloc(dwSize * sizeof(BYTE) + sizeof(DWORD));
-        if (!pbRegBuf) return jsonNode;
-
-        // Write Type (DWORD)
-        memcpy(pbRegBuf, &dwType, sizeof(DWORD));
-
-        // Get value from reg
-        res = RegQueryValueEx(hBase, szName, NULL, NULL, pbRegBuf+sizeof(DWORD), &dwSize);
-        if (res == ERROR_SUCCESS)
-            res = MD5_MemHashDigest(pbRegBuf, dwSize + sizeof(DWORD), szActualHash);
-
-        if (res != ERROR_SUCCESS) {
-            printf("Value '%s': Could not compute hash (%lu)\n", szName, res);
-            free(pbRegBuf);
-            return jsonNode;
+        // Value: compute MD5( dwType | rbValue)  (see implementation)
+        if (ERROR_SUCCESS == MD5_RegValueHashDigest(hCurrent, szName, szActualHash))
+            cJSON_AddStringToObject(jsonNode, "hash", szActualHash);
+        else {
+            printf("Value '%s': failed to compute hash\n", szName);
+            cJSON_AddNullToObject(jsonNode, "hash");
         }
-        else cJSON_AddStringToObject(jsonNode, "hash", szActualHash);
     }
-
-    printf("Snapshot of path '%s': Done\n", szName);
+    
+#ifdef REPORT_SUCCESSFUL_CHECKS
+    if (szName) printf("Snapshot of path '%s': Done\n", szName);
+#endif
     return jsonNode;
-
 }
 
 

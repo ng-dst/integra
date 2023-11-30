@@ -10,9 +10,6 @@
 #define MAX_JSON_SIZE 104857600
 #endif
 
-#define OBJECT_FILE 0
-#define OBJECT_REGISTRY 1
-
 #define NOT_FOUND (-1)
 
 
@@ -67,12 +64,13 @@ cJSON* ReadJSON(LPCTSTR path) {
     LPTSTR szOlPath = GetOLFilePath(); \
     if (!szOlPath) { \
         printf("Object List file is not set. Please run (as admin):\n" \
-        "\tintegra list path <path>" \
-        "\n  where <path> is absolute path to store Object List at (ex. C:\\path\\objects.json)\n"); \
+        "\tintegra list path <path>\n" \
+        "where <path> is absolute path to store Object List at (ex. C:\\path\\objects.json)\n"); \
         return EXIT_FAILURE; \
     } \
     cJSON* jsonObjectList = ReadJSON(szOlPath); \
-    if (!jsonObjectList || !cJSON_IsArray(jsonObjectList)) return EXIT_FAILURE
+    if (!jsonObjectList) jsonObjectList = cJSON_CreateArray(); \
+    if (!jsonObjectList) return EXIT_FAILURE
 
 
 #define SaveOL() \
@@ -221,7 +219,7 @@ int PrintObjectsInOL() {
         if (jsonPath && cJSON_IsString(jsonName))
             szName = cJSON_GetStringValue(jsonName);
 
-        printf("'%s' \t%s     '%s'\n", szName, dwType == OBJECT_REGISTRY ? "REG " : "FILE", szPath);
+        printf("'%s'    \t%s     '%s'\n", szName, dwType == OBJECT_REGISTRY ? "REG " : "FILE", szPath);
     }
 
     CloseOL();

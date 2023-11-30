@@ -12,7 +12,10 @@ set(SVC_NAME Integra)
 set(CHECK_INTERVAL 40000)
 
 # Report on successful checks for each file (for testing)
-set(REPORT_SUCCESSFUL_CHECKS TRUE)
+# set(REPORT_SUCCESSFUL_CHECKS TRUE)
+
+# Build directory
+set(PROJECT_BINARY_DIR ${PROJECT_SOURCE_DIR}/build)
 
 #-------------------------------------#
 
@@ -35,3 +38,4 @@ add_library(md5 lib/md5/md5.c)
 
 add_executable(integra main.c src/service.c src/event.c src/cfg.c src/integra.c src/snapshot.c src/utils.c)
 target_link_libraries(integra cjson md5 -static)
+set_target_properties(integra PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
