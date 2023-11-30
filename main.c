@@ -104,12 +104,12 @@ int main(int argc, char** argv) {
                "\tinstall                -  Install service (run as admin)\n"
                "\tverify                 -  Verify objects on-demand\n"
                "\tinterval [delay_ms]    -  Get or set time interval (ms) between checks. Default: 1800000 (30 min)\n"
-               "\tlist path [path]       -  Get or set absolute path for Object List. Default: (same as exe)\\integra-objects.json\n"
+               "\tlist path [path]       -  Get or set path for Object List. Default: (same as exe)\\integra-objects.json\n"
                "\tlist                   -  Print list of objects\n"
-               "\taddFile <name> <path>  -  Add file or folder to Object List\n"
-               "\taddReg <name> <path>   -  Add registry key to Object List\n"
-               "\tupdate <name>          -  Update object's state in Object List\n"
-               "\tremove <name>          -  Exclude object from Object List\n"
+               "\taddFile <name> <path>  -  Add file or folder\n"
+               "\taddReg <name> <path>   -  Add registry key\n"
+               "\tupdate <name>          -  Update object's state\n"
+               "\tremove <name>          -  Remove object from list\n"
                "\th, help                -  Print this message\n");
         return EXIT_SUCCESS;
     }

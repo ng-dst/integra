@@ -45,14 +45,15 @@ void ServiceLoop(HANDLE stopEvent) {
     while (TRUE) {
         // Read Object List
         cJSON* jsonObjectList = ReadJSON(szOlPath);
-        if (!jsonObjectList || !cJSON_IsArray(jsonObjectList)) return;
+        if (jsonObjectList && cJSON_IsArray(jsonObjectList)) {
 
-        // Verify objects
-        dwNumObjects = cJSON_GetArraySize(jsonObjectList);
-        for (int i = 0; i < dwNumObjects; i++)
-            VerifyObject(cJSON_GetArrayItem(jsonObjectList, i));
+            // Verify objects
+            dwNumObjects = cJSON_GetArraySize(jsonObjectList);
+            for (int i = 0; i < dwNumObjects; i++)
+                VerifyObject(cJSON_GetArrayItem(jsonObjectList, i));
 
-        cJSON_Delete(jsonObjectList);
+        }
+        if (jsonObjectList) cJSON_Delete(jsonObjectList);
 
         // If no stop event, check only once
         if (stopEvent == INTEGRA_CHECK_ONCE) return;
