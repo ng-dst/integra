@@ -3,8 +3,13 @@
 #include "service.h"
 #include "event.h"
 #include "cfg.h"
+#include "utils.h"
+#include "integra.h"
 
 #pragma comment(lib, "advapi32.lib")
+
+#define OBJECT_FILE 0
+#define OBJECT_REGISTRY 1
 
 
 int main(int argc, char** argv) {
@@ -40,14 +45,47 @@ int main(int argc, char** argv) {
         }
     }
 
+    // "addFile <name> <path>" - Add object (file / folder) to OL
+    if (argc > 3 && !strcmpi(argv[1], "addfile"))
+        return AddObjectToOL(argv[2], OBJECT_FILE, argv[3]);
+
+    // "addReg <name> <path>" - Add object (regisry key) to OL
+    if (argc > 3 && !strcmpi(argv[1], "addreg"))
+        return AddObjectToOL(argv[2], OBJECT_REGISTRY, argv[3]);
+
+    // "remove <name>" - Remove object from OL
+    if (argc > 2 && !strcmpi(argv[1], "remove"))
+        return RemoveObjectFromOL(argv[2]);
+
+    // "update <name>" - Update hashes for object in OL
+    if (argc > 2 && !strcmpi(argv[1], "update"))
+        return UpdateObjectInOL(argv[2]);
+
+    // "list" - Show objects in OL
+    if (argc == 2 && !strcmpi(argv[1], "list"))
+        return PrintObjectsInOL();
+
+    // "verify" - Verify on-demand
+    if (argc == 2 && !strcmpi(argv[1], "verify")) {
+        // run service without stop  =>  check once
+        ServiceLoop(INVALID_HANDLE_VALUE);
+        printf("Verification complete. See Event Log for details\n");
+        return EXIT_SUCCESS;
+    }
+
     // "h", "help" - Print help message
     if (argc > 1 && (!strcmpi(argv[1], "h") ||
                      !strcmpi(argv[1], "help"))) {
         printf("Lab 8: Integrity control service\n"
                "Available commands:\n"
                "\tinstall                -  Install service (run as admin)\n"
-               "\tlist path [path]       -  Get or set absolute path (like C:\\log.txt) for log file\n"
-               "\t   TBD    \n"
+               "\tverify                 -  Verify objects on-demand\n"
+               "\tlist path [path]       -  Get or set absolute path (like C:\\objects.json) for Object List\n"
+               "\tlist                   -  Print list of objects\n"
+               "\taddFile <name> <path>  -  Add file or folder to Object List\n"
+               "\taddReg <name> <path>   -  Add registry key to Object List\n"
+               "\tupdate <name>          -  Update object's state in Object List\n"
+               "\tremove <name>          -  Exclude object from Object List\n"
                "\th, help                -  Print this message\n");
         return EXIT_SUCCESS;
     }
@@ -64,8 +102,12 @@ int main(int argc, char** argv) {
                     {NULL, NULL}
             };
 
-    if (!StartServiceCtrlDispatcher(DispatchTable))
+    if (!StartServiceCtrlDispatcher(DispatchTable)) {
         SvcReportEvent(EVENTLOG_ERROR_TYPE, "StartServiceCtrlDispatcher failed");
+        // could just run manually from terminal
+        printf("Cannot run manually without arguments. Use 'h' or 'help' for help\n");
+        return EXIT_FAILURE;
+    }
 
     return EXIT_SUCCESS;
 }

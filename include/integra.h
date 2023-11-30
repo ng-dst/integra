@@ -4,10 +4,10 @@
 #include <windows.h>
 #include "cjson.h"
 
-cJSON* ReadJSON(LPCTSTR path);
-
 void ServiceLoop(HANDLE stopEvent);
-WINBOOL VerifyObject(cJSON* jsonObject);
-WINBOOL VerifyNode(cJSON* jsonNode, DWORD dwType, LPCTSTR szPath);
+
+void VerifyObject(cJSON* jsonObject);
+void VerifyNodeFile(cJSON* jsonNode, HANDLE hBase);
+void VerifyNodeReg(cJSON* jsonNode, HKEY hBase);
 
 #endif //INTEGRA_INTEGRA_H

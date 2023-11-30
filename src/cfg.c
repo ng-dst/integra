@@ -2,7 +2,7 @@
 
  base path:   HKLM\SYSTEM\CurrentControlSet\Services\Integra\
     - \Parameters                  - subkey. if not exists, create
-    - \Parameters\ObjectListFile   - REG_SZ. required ( if none, set to default: (same folder as exe) )
+    - \Parameters\ObjectListFile   - REG_SZ. required (exit if not present)
 
  */
 
@@ -18,7 +18,8 @@
 
 LPTSTR GetOLFilePath() {
     /**
-     * @brief Read REG_SZ Parameters/ObjectListFile
+     * @brief Allocate and Read REG_SZ: Parameters/ObjectListFile.
+     * Allocates result string, so the caller is responsible for freeing.
      */
     HKEY parametersKey;
     DWORD valueType;
