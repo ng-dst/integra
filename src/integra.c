@@ -150,7 +150,7 @@ void VerifyObject(cJSON* jsonObject) {
                 return;
             }
             // Safe, since hkRoot found '\\'
-            dwBackslashIndex = strchr(szPath, '\\') - szPath;
+            dwBackslashIndex = (LPVOID) _tcschr(szPath, '\\') - (LPVOID) szPath;
             res = RegOpenKeyEx(hkRoot, szPath + dwBackslashIndex + 1, 0, KEY_READ, &hkBaseKey);
 
             if (res != ERROR_SUCCESS) {
@@ -212,7 +212,7 @@ void VerifyNodeFile(cJSON* jsonNode, HANDLE hBase) {
 
     // Get path
     res = GetFinalPathNameByHandle(hBase, szPath, MAX_PATH-1, VOLUME_NAME_DOS);
-    if (res <= 0) strcpy(szPath, "<unknown>");
+    if (res <= 0) _tcscpy(szPath, _T("<unknown>"));
 
     // Get slaves of node
     cJSON* jsonSlaves = cJSON_GetObjectItem(jsonNode, "slaves");

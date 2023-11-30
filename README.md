@@ -182,4 +182,18 @@ There are separate functions for making snapshots and verifying:
 
 ### Alternative approach
 
-Instead of implementing separate functions for creating and verifying HashTrees, make `VerifyObject()` call `SnapshotObject()` and then compare resulting JSON to expected HashTree recursively. 
+Instead of implementing separate functions for creating and verifying HashTrees, make `VerifyObject()` call `SnapshotObject()` and then compare resulting JSON to expected HashTree recursively.
+
+## Improvements
+
+* Multiple lists: manage lists, enable / disable list by name, etc. Paths can be stored in registry by list name.
+* Unicode... It technically could work if I polish it quite a bit, but im too lazy &nbsp;ฅ^•ﻌ•^ฅ
+
+          ∧＿∧
+         (｡･ω･｡)つ━☆ ・*。
+       ⊂/　  /　   ・゜
+        しーＪ　　　  °。+ * 。　
+        　　　　　         .・゜
+        　　　　　         ゜｡ﾟﾟ･｡･ﾟﾟ。
+        　　　　             ﾟ。　 　｡ﾟ
+                            　ﾟ･｡･ﾟ 

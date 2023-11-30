@@ -14,15 +14,15 @@
 
 
 HKEY ParseRootHKEY(LPCTSTR szPath) {
-    LPTSTR lpIndex = strchr(szPath, '\\');
+    LPTSTR lpIndex = _tcschr(szPath, '\\');
     if (!lpIndex) return INVALID_HANDLE_VALUE;
 
     DWORD size = lpIndex - szPath;
-    if (!strncmp("HKEY_CLASSES_ROOT", szPath, size)) return HKEY_CLASSES_ROOT;
-    if (!strncmp("HKEY_CURRENT_CONFIG", szPath, size)) return HKEY_CURRENT_CONFIG;
-    if (!strncmp("HKEY_CURRENT_USER", szPath, size)) return HKEY_CURRENT_USER;
-    if (!strncmp("HKEY_LOCAL_MACHINE", szPath, size)) return HKEY_LOCAL_MACHINE;
-    if (!strncmp("HKEY_USERS", szPath, size)) return HKEY_USERS;
+    if (!_tcsncmp("HKEY_CLASSES_ROOT", szPath, size)) return HKEY_CLASSES_ROOT;
+    if (!_tcsncmp("HKEY_CURRENT_CONFIG", szPath, size)) return HKEY_CURRENT_CONFIG;
+    if (!_tcsncmp("HKEY_CURRENT_USER", szPath, size)) return HKEY_CURRENT_USER;
+    if (!_tcsncmp("HKEY_LOCAL_MACHINE", szPath, size)) return HKEY_LOCAL_MACHINE;
+    if (!_tcsncmp("HKEY_USERS", szPath, size)) return HKEY_USERS;
 
     return INVALID_HANDLE_VALUE;
 }

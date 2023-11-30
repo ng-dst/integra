@@ -84,7 +84,7 @@ cJSON* SnapshotObject(DWORD dwType, LPCTSTR szObjectName, LPCTSTR szPath) {
                 return NULL;
             }
             // Safe, since hkRoot found '\\'
-            dwBackslashIndex = strchr(szPath, '\\') - szPath;
+            dwBackslashIndex = (LPVOID) _tcschr(szPath, '\\') - (LPVOID) szPath;
             res = RegOpenKeyEx(hkRoot, szPath + dwBackslashIndex + 1, 0, KEY_READ, &hkBaseKey);
 
             if (res != ERROR_SUCCESS) {
@@ -153,7 +153,7 @@ cJSON* SnapshotNodeFile(HANDLE hBase, LPCTSTR szName) {
 
     // Get path by base handle:  szPath
     res = GetFinalPathNameByHandle(hBase, szPath, MAX_PATH-1, VOLUME_NAME_DOS);
-    if (res <= 0) strcpy(szPath, "<unknown>");
+    if (res <= 0) _tcscpy(szPath, _T("<unknown>"));
 
     // Set name (if present)
     if (szName) cJSON_AddStringToObject(jsonNode, "name", szName);
