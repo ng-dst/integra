@@ -14,6 +14,7 @@
 #define BASE_PATH _T("SYSTEM\\CurrentControlSet\\Services\\") SVCNAME
 #define PARAMETERS_PATH BASE_PATH _T("\\Parameters")
 #define OL_FILE _T("ObjectListFile")
+#define CHECK_INTERVAL _T("CheckIntervalMS")
 
 
 LPTSTR GetOLFilePath() {
@@ -91,4 +92,48 @@ WINBOOL InitRegPaths() {
     }
 
     return TRUE;  // Key was initialized
+}
+
+
+
+DWORD GetCheckInterval() {
+    /**
+     * @brief Read DWORD: Parameters/CheckIntervalMS
+     */
+    HKEY parametersKey;
+    DWORD dwValue = 0, dwSize = sizeof(DWORD);
+
+    if (ERROR_SUCCESS != RegCreateKeyEx(HKEY_LOCAL_MACHINE, PARAMETERS_PATH, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_READ, NULL, &parametersKey, NULL))
+        return 0;  // Failed to create or open parameters key
+
+
+    if (ERROR_SUCCESS != RegQueryValueEx(parametersKey, CHECK_INTERVAL, NULL, NULL, (LPVOID) &dwValue, &dwSize)) {
+        RegCloseKey(parametersKey);
+        return 0;
+    }
+
+    RegCloseKey(parametersKey);
+    return dwValue;
+}
+
+WINBOOL SetCheckInterval(DWORD dwValueMs) {
+    /**
+     * @brief Create or set REG_DWORD at Parameters/CheckIntervalMS
+     */
+    if (!dwValueMs) return FALSE;
+
+    HKEY parametersKey;
+    if (ERROR_SUCCESS != RegCreateKeyEx(HKEY_LOCAL_MACHINE, PARAMETERS_PATH, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &parametersKey, NULL))
+        return FALSE;  // Failed to create or open parameters key
+
+    WINBOOL result = (RegSetValueEx(parametersKey,
+                                    CHECK_INTERVAL,
+                                    0,
+                                    REG_SZ,
+                                    (LPVOID) &dwValueMs,
+                                    sizeof(DWORD)
+                     ) == ERROR_SUCCESS);
+
+    RegCloseKey(parametersKey);
+    return result;
 }

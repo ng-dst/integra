@@ -19,6 +19,32 @@ int main(int argc, char** argv) {
         return EXIT_SUCCESS;
     }
 
+    // "interval [delay_ms]" - Get / set* integrity check interval for service
+    if (argc > 1 && !strcmpi(argv[1], "interval")) {
+        // no interval specified, print existing
+        if (argc == 2) {
+            DWORD delay = GetCheckInterval();
+            if (!delay) printf("Check interval is not set. Using default (30 minutes)\n");
+            else printf("Check interval:  %lu ms (%luh %lum %lus)\n", delay, delay/3600000, (delay/60000)%60, (delay/1000)%60);
+            return EXIT_SUCCESS;
+        }
+        else {
+            DWORD delay = atol(argv[2]);
+            if (!delay) {
+                printf("Failed: Please enter valid delay (ms)\n");
+                return EXIT_FAILURE;
+            }
+            if (SetCheckInterval(delay)) {
+                printf("OK\n");
+                return EXIT_SUCCESS;
+            }
+            else {
+                printf("Failed. Try to run as administrator\n");
+                return EXIT_FAILURE;
+            }
+        }
+    }
+
     // "list path [path]" - Get / set* absolute path for OL file
     if (argc > 2 && !strcmpi(argv[1], "list") && !strcmpi(argv[2], "path")) {
         // no path specified, print existing
@@ -77,7 +103,8 @@ int main(int argc, char** argv) {
                "Available commands:\n"
                "\tinstall                -  Install service (run as admin)\n"
                "\tverify                 -  Verify objects on-demand\n"
-               "\tlist path [path]       -  Get or set absolute path (like C:\\objects.json) for Object List\n"
+               "\tinterval [delay_ms]    -  Get or set time interval (ms) between checks. Default: 1800000 (30 min)\n"
+               "\tlist path [path]       -  Get or set absolute path for Object List. Default: (same as exe)\\integra-objects.json\n"
                "\tlist                   -  Print list of objects\n"
                "\taddFile <name> <path>  -  Add file or folder to Object List\n"
                "\taddReg <name> <path>   -  Add registry key to Object List\n"

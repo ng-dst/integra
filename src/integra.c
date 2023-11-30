@@ -19,22 +19,32 @@ void ServiceLoop(HANDLE stopEvent) {
      * @brief Main loop for service. Truly main.
      *
      * @details sleep for delay, then perform hash check based on object list (path in registry, cfg.h)
+     *  Can be run manually (outside of service): call with stopEvent = INTEGRA_CHECK_ONCE
      */
 
+    // Read interval from registry
+    DWORD dwIntervalMs = GetCheckInterval();
+    DWORD res, dwNumObjects;
+
     // Read path to OL from registry
-    LPTSTR olPath = GetOLFilePath();
-    if (!olPath) {
+    LPTSTR szOlPath = GetOLFilePath();
+    if (!szOlPath) {
         SvcReportEvent(EVENTLOG_ERROR_TYPE, "Object List file is not set. Please run (as admin):\n"
                "\tintegra list path <path>"
                "\n  where <path> is absolute path to store Object List at (ex. C:\\path\\objects.json)\n");
         return;
     }
 
-    DWORD res, dwNumObjects;
-    while (TRUE) {
+    // Runs as service, report params
+    if (stopEvent != INTEGRA_CHECK_ONCE) {
+        TCHAR buf[BUF_LEN];
+        snprintf(buf, BUF_LEN-1, "Service is running. Interval: %lu, List: %s", dwIntervalMs, szOlPath);
+        SvcReportEvent(EVENTLOG_INFORMATION_TYPE, buf);
+    }
 
+    while (TRUE) {
         // Read Object List
-        cJSON* jsonObjectList = ReadJSON(olPath);
+        cJSON* jsonObjectList = ReadJSON(szOlPath);
         if (!jsonObjectList || !cJSON_IsArray(jsonObjectList)) return;
 
         // Verify objects
@@ -48,7 +58,7 @@ void ServiceLoop(HANDLE stopEvent) {
         if (stopEvent == INTEGRA_CHECK_ONCE) return;
 
         // Sleep for Check Delay while listening for stop signal
-        res = WaitForSingleObject(stopEvent, CHECK_DELAY_MS);
+        res = WaitForSingleObject(stopEvent, dwIntervalMs);
         if (res != WAIT_TIMEOUT) return;
     }
 }
@@ -91,7 +101,7 @@ void VerifyObject(cJSON* jsonObject) {
 
     if (!szObjectName) szObjectName = "Unnamed";
 
-    snprintf(buf, BUF_LEN-1, "Started verification for object '%s'", szObjectName);
+    snprintf(buf, BUF_LEN-1, "Object '%s': Started verification", szObjectName);
     SvcReportEvent(EVENTLOG_INFORMATION_TYPE, buf);
 
     cJSON* jsonPath = cJSON_GetObjectItem(jsonObject, "path");
@@ -263,7 +273,7 @@ void VerifyNodeFile(cJSON* jsonNode, HANDLE hBase) {
                 return;
             }
             if (0 != strncmp(szExpectedHash, szActualHash, MD5LEN * 2)) {
-                snprintf(buf, BUF_LEN-1, "File '%s': File was modified (hash mismatch)", szPath);
+                snprintf(buf, BUF_LEN-1, "File '%s': Modified (hash mismatch)", szPath);
                 SvcReportEvent(EVENTLOG_WARNING_TYPE, buf);
                 if (hCurrent != hBase) CloseHandle(hCurrent);
                 return;

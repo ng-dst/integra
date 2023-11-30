@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <windows.h>
+#include <tchar.h>
 #include "service.h"
 #include "event.h"
 #include "integra.h"
+#include "cfg.h"
+
+#define DEFAULT_CHECK_INTERVAL_MS (30 * 60 * 1000)
+#define DEFAULT_OL_FILE_NAME _T("\\objects.json")
 
 
 SERVICE_STATUS gSvcStatus;
@@ -16,9 +21,17 @@ void SvcInstall() {
      *
      * @details https://learn.microsoft.com/en-us/windows/win32/services/svc-cpp
      */
+
     SC_HANDLE schSCManager;
     SC_HANDLE schService;
     TCHAR path[MAX_PATH] = {0};
+
+    // Set default parameters
+    SetCheckInterval(DEFAULT_CHECK_INTERVAL_MS);
+    if (GetCurrentDirectory(MAX_PATH, path)) {
+        strncpy(path + _tcslen(path), DEFAULT_OL_FILE_NAME, MAX_PATH - _tcslen(path) - 1);
+        SetOLFilePath(path);
+    }
 
     // path = \" <name> \"
     if (!GetModuleFileName(NULL, path+1, MAX_PATH-2)) {
@@ -109,6 +122,7 @@ void ReportSvcStatus(DWORD state, DWORD exit_code, DWORD wait_hint) {
     /**
      * @brief Set and report service status to SCM
      */
+
     static DWORD checkPoint = 1;
 
     gSvcStatus.dwCurrentState = state;
