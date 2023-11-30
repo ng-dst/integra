@@ -4,7 +4,7 @@
 
 Integra is a service to control integrity of user-defined objects. An object is either a file, directory, or  registry key. Integrity is verified against object snapshots - something similar to OS restore points.
 
-Service verifies integrity in a set time interval. Reports verification errors to Event Log.
+Service performs checks in a set time interval. Reports verification errors to Event Log.
 
 ## Features
 
@@ -17,8 +17,8 @@ Service verifies integrity in a set time interval. Reports verification errors t
 ## Options
 
 * `install` &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Install service (run as admin)	
-* `list path [path]` &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp; Get or set path for _Object List_. Default: `(same as exe)\objects.json`	
-* `interval [delay_ms]` &nbsp;&ensp;&ensp; Get or set time interval (ms) between checks. Default: `1800000` (30 min)
+* `list path [path]` &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp; Get or set* path for _Object List_. Default: `(same as exe)\objects.json`	
+* `interval [delay_ms]` &nbsp;&ensp;&ensp; Get or set* time interval (ms) between checks. Default: `1800000` (30 min)
 * `list`  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&ensp;&ensp;&nbsp; &nbsp; Print list of objects	
 * `addFile <name> <path>` &nbsp; Add file or folder
 * `addReg <name> <path>` &nbsp;&ensp; Add registry key
@@ -37,6 +37,10 @@ Service verifies integrity in a set time interval. Reports verification errors t
 6. To add registry key: `integra.exe addReg "HKEY_SAMPLE_KEY\Path\Key"`
 7. (optional) Verify on-demand from terminal: `integra.exe verify`
 8. View results: open _EventVwr.exe_ (go to _Windows Logs/Application_)
+
+_*_ requires administrative privileges (Run as Admin)
+
+For security reasons, it is recommended to store Object List under write-protected location, where write access is restricted to administrators only.
 
 ## Registry
 
