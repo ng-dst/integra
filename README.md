@@ -17,6 +17,7 @@ Service performs checks in a set time interval. Reports verification errors to E
 ## Options
 
 * `install` &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Install service (run as admin)	
+* `uninstall` &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Uninstall service (run as admin)	
 * `list path [path]` &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp; Get or set* path for _Object List_. Default: `(same as exe)\objects.json`	
 * `interval [delay_ms]` &nbsp;&ensp;&ensp; Get or set* time interval (ms) between checks. Default: `1800000` (30 min)
 * `list`  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&ensp;&ensp;&nbsp; &nbsp; Print list of objects	
@@ -191,9 +192,9 @@ Instead of implementing separate functions for creating and verifying HashTrees,
 
           ∧＿∧
          (｡･ω･｡)つ━☆ ・*。
-       ⊂/　  /　   ・゜
+       ⊂/　  /　    ・゜
         しーＪ　　　  °。+ * 。　
         　　　　　         .・゜
         　　　　　         ゜｡ﾟﾟ･｡･ﾟﾟ。
-        　　　　             ﾟ。　 　｡ﾟ
+        　　　　             ﾟ。　 ｡ﾟ
                             　ﾟ･｡･ﾟ 
