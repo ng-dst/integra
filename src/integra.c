@@ -6,10 +6,6 @@
 #include "utils.h"
 #include "integra.h"
 
-// default: 30 minutes
-#ifndef CHECK_DELAY_MS
-#define CHECK_DELAY_MS 30 * 60 * 1000
-#endif
 
 #define BUF_LEN 256
 
@@ -24,6 +20,7 @@ void ServiceLoop(HANDLE stopEvent) {
 
     // Read interval from registry
     DWORD dwIntervalMs = GetCheckInterval();
+    if (!dwIntervalMs) dwIntervalMs = DEFAULT_CHECK_INTERVAL_MS;
     DWORD res, dwNumObjects;
 
     // Read path to OL from registry

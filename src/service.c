@@ -6,7 +6,6 @@
 #include "integra.h"
 #include "cfg.h"
 
-#define DEFAULT_CHECK_INTERVAL_MS (30 * 60 * 1000)
 #define DEFAULT_OL_FILE_NAME _T("\\objects.json")
 
 
