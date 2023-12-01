@@ -129,7 +129,7 @@ WINBOOL SetCheckInterval(DWORD dwValueMs) {
     WINBOOL result = (RegSetValueEx(parametersKey,
                                     CHECK_INTERVAL,
                                     0,
-                                    REG_SZ,
+                                    REG_DWORD,
                                     (LPVOID) &dwValueMs,
                                     sizeof(DWORD)
                      ) == ERROR_SUCCESS);
