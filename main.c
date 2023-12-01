@@ -14,10 +14,12 @@ int main(int argc, char** argv) {
     InitRegPaths();
 
     // "install" - Install service *
-    if (argc > 1 && !strcmpi(argv[1], "install")) {
-        SvcInstall();
-        return EXIT_SUCCESS;
-    }
+    if (argc > 1 && !strcmpi(argv[1], "install"))
+        return SvcInstall();
+
+    // "uninstall" - Uninstall service *
+    if (argc > 1 && !strcmpi(argv[1], "uninstall"))
+        return SvcUninstall();
 
     // "interval [delay_ms]" - Get / set* integrity check interval for service
     if (argc > 1 && !strcmpi(argv[1], "interval")) {
