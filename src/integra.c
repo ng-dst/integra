@@ -9,6 +9,106 @@
 
 #define BUF_LEN 256
 
+CRITICAL_SECTION csVerification;
+
+
+void NotificationLoopThread(HANDLE stopEvent) {
+    /**
+     * @brief Thread for registering and processing Change Notifications
+     */
+
+    // Read path to OL from registry
+    LPTSTR szOlPath = GetOLFilePath();
+    if (!szOlPath)
+        return;
+
+    // Read Object List
+    cJSON* jsonObjectList = ReadJSON(szOlPath);
+    if (!jsonObjectList || !cJSON_IsArray(jsonObjectList)) {
+        TCHAR buf[MAX_PATH + 64];
+        snprintf(buf, MAX_PATH + 63, "Could not load Object List from '%s'", szOlPath);
+        SvcReportEvent(EVENTLOG_ERROR_TYPE, buf);
+        return;
+    }
+
+    // Get objects as JSON array -> paths -> handles array
+    DWORD dwNumObjects = cJSON_GetArraySize(jsonObjectList);
+    HANDLE* lpChangeHandles = calloc(dwNumObjects + 1, sizeof(HANDLE));
+    if (!lpChangeHandles) { cJSON_Delete(jsonObjectList); return; }
+
+    for (int i = 0; i < dwNumObjects; i++) {
+        // Workaround for error on invalid handles
+        lpChangeHandles[i] = stopEvent;
+
+        // Parse JSON objects to get paths
+        cJSON* jsonArrItem = cJSON_GetArrayItem(jsonObjectList, i);
+        cJSON* jsonPath = cJSON_GetObjectItem(jsonArrItem, "path");
+        if (!cJSON_IsString(jsonPath)) continue;
+        LPCTSTR szPath = cJSON_GetStringValue(jsonPath);
+
+        cJSON* jsonType = cJSON_GetObjectItem(jsonArrItem, "type");
+        if (!cJSON_IsNumber(jsonType)) continue;
+        DWORD dwType = (DWORD) cJSON_GetNumberValue(jsonType);
+
+        // Not using Change Notification for registry
+        if (dwType != OBJECT_FILE)
+            continue;
+
+        // Register for notifications
+        lpChangeHandles[i] = FindFirstChangeNotification(szPath, TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE |
+                                                                       FILE_NOTIFY_CHANGE_DIR_NAME |
+                                                                       FILE_NOTIFY_CHANGE_FILE_NAME |
+                                                                       FILE_NOTIFY_CHANGE_CREATION);
+        TCHAR buf[MAX_PATH + BUF_LEN];
+        if (lpChangeHandles[i] == INVALID_HANDLE_VALUE || lpChangeHandles[i] == NULL) {
+            // Error while registering
+            snprintf(buf, MAX_PATH + BUF_LEN - 1, "Cannot register for change notification for '%s'", szPath);
+            SvcReportEvent(EVENTLOG_WARNING_TYPE, buf);
+            lpChangeHandles[i] = stopEvent;
+        }
+        else {
+            // registration OK
+            snprintf(buf, MAX_PATH + BUF_LEN - 1, "Registered for notifications: '%s'", szPath);
+            SvcReportEvent(EVENTLOG_INFORMATION_TYPE, buf);
+        }
+    }
+    // Append stop event in order to abort monitoring
+    lpChangeHandles[dwNumObjects] = stopEvent;
+
+    while (TRUE) {
+        // Wait for handles and verify corresponding objects
+        DWORD dwWaitStatus = WaitForMultipleObjects(dwNumObjects + 1, lpChangeHandles, FALSE, INFINITE);
+        DWORD dwObjIndex = dwWaitStatus - WAIT_OBJECT_0;
+
+        TCHAR buf[BUF_LEN];
+        if (dwObjIndex > dwNumObjects) {
+            // error?
+            snprintf(buf, BUF_LEN - 1, "Error waiting for Change Notification (%lu)", GetLastError());
+            SvcReportEvent(EVENTLOG_ERROR_TYPE, buf);
+        }
+        if (lpChangeHandles[dwObjIndex] != stopEvent) {
+            // object change detected
+            snprintf(buf, BUF_LEN - 1, "Changes detected at object #%lu. Awaiting verification.", dwObjIndex);
+            SvcReportEvent(EVENTLOG_INFORMATION_TYPE, buf);
+            cJSON* jsonArrItem = cJSON_GetArrayItem(jsonObjectList, (int) dwObjIndex);
+            EnterCriticalSection(&csVerification);
+            VerifyObject(jsonArrItem);
+            LeaveCriticalSection(&csVerification);
+            if (FindNextChangeNotification(lpChangeHandles[dwObjIndex]) == FALSE) {
+                SvcReportEvent(EVENTLOG_WARNING_TYPE, "FindNextChangeNotification failed. Monitoring for the object is on timer now.");
+                lpChangeHandles[dwObjIndex] = stopEvent;
+            }
+        } else {
+            // stop event
+            for (int i = 0; i < dwNumObjects; i++)
+                if (lpChangeHandles[i] != INVALID_HANDLE_VALUE)
+                    FindCloseChangeNotification(lpChangeHandles[i]);
+            cJSON_Delete(jsonObjectList);
+            return;
+        }
+    }
+}
+
 
 void ServiceLoop(HANDLE stopEvent) {
     /**
@@ -18,10 +118,13 @@ void ServiceLoop(HANDLE stopEvent) {
      *  Can be run manually (outside of service): call with stopEvent = INTEGRA_CHECK_ONCE
      */
 
+    InitializeCriticalSection(&csVerification);
+
     // Read interval from registry
     DWORD dwIntervalMs = GetCheckInterval();
     if (!dwIntervalMs) dwIntervalMs = DEFAULT_CHECK_INTERVAL_MS;
     DWORD res, dwNumObjects;
+    HANDLE hCnThread = INVALID_HANDLE_VALUE;
 
     // Read path to OL from registry
     LPTSTR szOlPath = GetOLFilePath();
@@ -32,39 +135,57 @@ void ServiceLoop(HANDLE stopEvent) {
         return;
     }
 
-    // Runs as service, report params
+    // Runs as service, report params and create Change Notifications thread
     if (stopEvent != INTEGRA_CHECK_ONCE) {
         TCHAR buf[BUF_LEN];
         snprintf(buf, BUF_LEN-1, "Service is running. Interval: %lu, List: %s", dwIntervalMs, szOlPath);
         SvcReportEvent(EVENTLOG_INFORMATION_TYPE, buf);
+#ifndef CHANGE_NOTIFICATION_DISABLE
+        // Run Change Notification thread
+        hCnThread = CreateThread(NULL, 0, (LPVOID) NotificationLoopThread, stopEvent, 0, NULL);
+        if (hCnThread == INVALID_HANDLE_VALUE)
+            SvcReportEvent(EVENTLOG_ERROR_TYPE, "Could not start Change Notification thread");
+#endif
     }
 
     while (TRUE) {
         // Read Object List
         cJSON* jsonObjectList = ReadJSON(szOlPath);
         if (jsonObjectList && cJSON_IsArray(jsonObjectList)) {
-
             // Verify objects
             dwNumObjects = cJSON_GetArraySize(jsonObjectList);
+            EnterCriticalSection(&csVerification);
             for (int i = 0; i < dwNumObjects; i++)
                 VerifyObject(cJSON_GetArrayItem(jsonObjectList, i));
-
+            LeaveCriticalSection(&csVerification);
         }
+        else SvcReportEvent(EVENTLOG_ERROR_TYPE, "Could not read JSON from OL path");
+
         if (jsonObjectList) cJSON_Delete(jsonObjectList);
 
         // If no stop event, check only once
-        if (stopEvent == INTEGRA_CHECK_ONCE) return;
+        if (stopEvent == INTEGRA_CHECK_ONCE) {
+            DeleteCriticalSection(&csVerification);
+            return;
+        }
 
         // Sleep for Check Delay while listening for stop signal
         res = WaitForSingleObject(stopEvent, dwIntervalMs);
-        if (res != WAIT_TIMEOUT) return;
+        if (res != WAIT_TIMEOUT) {
+            if (hCnThread != INVALID_HANDLE_VALUE) {
+                DWORD dwWaitStatus = WaitForSingleObject(hCnThread, 3000);
+                if (dwWaitStatus == WAIT_TIMEOUT) TerminateThread(hCnThread, ERROR_TIMEOUT);
+                CloseHandle(hCnThread);
+            }
+            DeleteCriticalSection(&csVerification);
+            return;
+        }
     }
 }
 
-
 #define ReportObjErrorAndRet() \
     do { \
-        snprintf(buf, BUF_LEN-1, "Verification for object '%s': Failed (bad JSON)", szObjectName);   \
+        snprintf(buf, BUF_LEN - 1, "Verification for object '%s': Failed (bad JSON)", szObjectName);   \
         SvcReportEvent(EVENTLOG_ERROR_TYPE, buf);                                           \
         return;                                                                       \
     } while (0)

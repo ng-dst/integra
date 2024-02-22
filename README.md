@@ -4,7 +4,7 @@
 
 Integra is a service to control integrity of user-defined objects. An object is either a file, directory, or  registry key. Integrity is verified against object snapshots - something similar to OS restore points.
 
-Service performs checks in a set time interval. Reports verification errors to Event Log.
+Service performs checks in a set time interval and based on Change Notifications (for directories). Reports verification errors to Event Log.
 
 ## Features
 
@@ -160,8 +160,9 @@ Uses MD5 as a hashing algorithm. All hashes are stored as Hex strings. Below are
 
 Service was built based on [The Complete Service Sample](https://learn.microsoft.com/en-us/windows/win32/services/svc-cpp) by Microsoft.
 
-Inside `SvcInit()`, control is transferred to `ServiceLoop()`:
+Inside `SvcInit()`, main control is transferred to `ServiceLoop()`:
 * Get Object List path from registry
+* Spawn `NotificationLoopThread()` to handle Change Notifications
 * Loop until stop event:
   * Read JSON from Object List file
   * For each object in list: call `VerifyObject()`
@@ -183,11 +184,13 @@ There are separate functions for making snapshots and verifying:
 
 ### Alternative approach
 
-Instead of implementing separate functions for creating and verifying HashTrees, make `VerifyObject()` call `SnapshotObject()` and then compare resulting JSON to expected HashTree recursively.
+Instead of implementing separate functions for creating and verifying HashTrees, one can make `VerifyObject()` call `SnapshotObject()` and then compare resulting JSON to expected HashTree recursively.
 
 ## Improvements
 
 * Multiple lists: manage lists, enable / disable list by name, etc. Paths can be stored in registry by list name.
+* More detailed and convenient info in Event Log.
+* Push notifications? (outside the task scope but a nice feature to have)
 * Unicode... It technically could work if I polish it quite a bit, but im too lazy &nbsp;ฅ^•ﻌ•^ฅ
 
           ∧＿∧

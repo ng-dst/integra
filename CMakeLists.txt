@@ -11,6 +11,9 @@ set(SVC_NAME Integra)
 # Report on successful checks for each file (for testing)
 # set(REPORT_SUCCESSFUL_CHECKS TRUE)
 
+# Disable verification on Change Notifications
+# set(CHANGE_NOTIFICATIONS_DISABLE TRUE)
+
 # Build directory
 set(PROJECT_BINARY_DIR ${PROJECT_SOURCE_DIR}/build)
 
@@ -25,6 +28,9 @@ include_directories(lib/md5)
 add_definitions(-D SVCNAME=\\"${SVC_NAME}\\")
 if (REPORT_SUCCESSFUL_CHECKS)
     add_definitions(-D REPORT_SUCCESSFUL_CHECKS)
+endif()
+if (CHANGE_NOTIFICATIONS_DISABLE)
+    add_definitions(-D CHANGE_NOTIFICATIONS_DISABLE)
 endif()
 
 add_library(cjson lib/cjson/cjson.c)
